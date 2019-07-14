@@ -1,0 +1,133 @@
+#define M11 PORTC.F4              // RC4 pin selected as output for bed up
+#define M12 PORTC.F5              // RC5 pin selected as output for bed down
+#define Relay_FAN PORTC.F2        // RC2 pin as FAN output
+#define Relay_LED PORTC.F3        // RC3 pin as lamp output
+#define Eyeblink_Sensor PORTC.F1  // RC1 pin to send input signal from IR sensor
+
+
+unsigned char Step_Duration=50;   //
+int Motion_X=0;                   // setting the x value 0
+int Bed_Inclination=0;            // declaring initial inclination as 0
+
+
+////--------------------------------------------------------
+void Stop (void) { // Funtion to stop both motors
+M11=0;             // stopping motor
+M12=0;             //
+}
+
+
+void Upward (void) { //function declaration-Motion to move the bed upwards
+M11=1;             // Motor1 is working during this time.
+M12=0;
+Delay_Ms(50);
+M11=0;             // Both motors are stopped.
+M12=0;
+}
+
+void Downward (void) {   //function declaration-Motion to move the bed downwards
+M11=0;
+M12=1;               // Motor1 is working during this time.
+Delay_Ms(50);
+M11=0;               //Both motors are stopped.
+M12=0;
+}
+
+char DelayCheck (int Count){
+    char Stat=0;     // declaring the count of eye-blink sensor
+    Count=Count/50;
+    while (Count--){
+        Delay_Ms(50);
+        if(Eyeblink_Sensor){  // checking the number of signal from ir sensor
+
+            Stat++;
+            while(Eyeblink_Sensor);
+            Delay_Ms(50);
+            if(Stat > 3)        // loop works 4 times
+            break;
+        }
+    }
+    return (Stat);
+}
+
+//-----------------------------------------------------------------
+void main(void) {
+  TRISB = 0;                // PORTB is output
+  Lcd_Init(&PORTB);         // Initialize LCD connected to PORTB
+  Lcd_Cmd(Lcd_CLEAR);       // Clear display
+  Lcd_Cmd(Lcd_CURSOR_OFF);  // Turn cursor off
+
+  TRISC=0;                 // port c set as output
+  TRISC.F1=1;               // RC1 set as input
+Stop ();    //calling stop function
+
+Lcd_Out(1,0,"Smart Bed");  // to display smart bed
+Delay_Ms(1000);            // delay 1s
+
+    while(1)  {
+        while(1){
+        Motion_X=Adc_Read(0);   // initialising analog pins RA0,RA1,RA2
+
+            if (Motion_X < 200){  // checking the x value ,below 200 or not
+            if(DelayCheck(3000))   // if it is below 200 calling delaycheck function
+                    break;
+            }
+        }
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+     Lcd_Out(1,0,"Activated");       // dispalays activated
+        Delay_Ms(1000);
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"SEND SOS");      //  displays send sos
+
+        if(DelayCheck(2000)){        // 2seconds delay
+
+            Lcd_Cmd(Lcd_CLEAR);       // Clear display
+            Delay_Ms(1000);
+        }
+
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"BED UP");          // displays bed up
+
+        if(DelayCheck(2000)){            // 2 s delay
+        if(Bed_Inclination <60) {        // checking the current possition of bed
+          Upward();                          //  calling upward function
+          Bed_Inclination=Bed_Inclination+10;    // bed rise up by 10 degree
+                Lcd_Cmd(Lcd_CLEAR);       // Clear display
+                Lcd_Out(1,0,"Done");           // displays done
+                Delay_Ms(1000);
+        }
+        }
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"BED DOWN");
+
+        if(DelayCheck(2000)){
+        if(Bed_Inclination >9) {      // checking bed inclination
+    Downward();                         // calling downward fuction
+    Bed_Inclination=Bed_Inclination-10;   // updating the bed inclination value
+                Lcd_Cmd(Lcd_CLEAR);       // Clear display
+                Delay_Ms(1000);
+        }
+        }
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"FAN ON/OFF");
+
+        if(  DelayCheck(2000)  ) {
+        Relay_FAN=!Relay_FAN;        // sending signal to do the opposit function
+            Lcd_Cmd(Lcd_CLEAR);       // Clear display
+            Delay_Ms(1000);
+        }
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"LIGHT ON/OFF");
+
+        if(  DelayCheck(2000)  ) {
+        Relay_LED=!Relay_LED;
+            Lcd_Cmd(Lcd_CLEAR);       // Clear display
+            Delay_Ms(1000);
+        }
+    }
+}
+
