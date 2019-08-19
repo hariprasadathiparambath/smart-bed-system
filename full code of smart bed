@@ -1,0 +1,198 @@
+#define M11 PORTC.F4
+#define M12 PORTC.F5
+
+#define Relay_FAN PORTC.F2
+#define Relay_LED PORTC.F3
+#define Relay_UART PORTC.F0
+
+#define Eyeblink_Sensor PORTC.F1
+
+
+unsigned char Step_Duration=50;
+int Motion_X=0;
+int Bed_Inclination=0;
+int Sleep_Timer=0;
+
+const *MsgPart_1 ="AT+CMGS=\"+14163194756\"/r/r";
+const *MsgPart_2 = "Emergency.. Please help me\r\n" ;
+
+
+const *LightON = "Light: ON ";
+const *LightOFF = "Light: OFF ";
+
+const *FANON = ", FAN: ON ";
+const *FANOFF = ", FAN: OFF ";
+
+const *BED = ", BED: ";
+
+const *SLEEPINGYES = ", SLEEPING: YES ";
+const *SLEEPINGNO = ", SLEEPING: NO ";
+
+
+////--------------------------------------------------------
+void Stop (void) {
+M11=0;
+M12=0;
+}
+
+
+void Upward (void) {
+M11=1;
+M12=0;
+Delay_Ms(50);
+M11=0;
+M12=0;
+}
+
+void Downward (void) {
+M11=0;
+M12=1;
+Delay_Ms(50);
+M11=0;
+M12=0;
+}
+
+char DelayCheck (int Count){
+    char Stat=0;
+    Count=Count/50;
+    while (Count--){
+        Delay_Ms(50);
+        if(Eyeblink_Sensor){
+        Sleep_Timer=0;
+            Stat++;
+            while(Eyeblink_Sensor);
+            Delay_Ms(50);
+            if(Stat > 3)
+            break;
+        }
+    }
+    return (Stat);
+}
+
+void Usart_Write_String (char *Stringg)    {
+     while(*Stringg)
+          Usart_Write(*Stringg++);
+}
+
+void Send_SOS (void) {
+   Relay_UART=1;
+   Delay_Ms(200);
+Usart_Write_String(&MsgPart_1);
+Usart_Write_String(&MsgPart_2);
+   Relay_UART=0;
+}
+
+void Send_Status_Wifi (void) {
+if(Relay_LED)
+Usart_Write_String(&LightON);
+else
+Usart_Write_String(&LightOFF);
+
+
+if(Relay_FAN)
+Usart_Write_String(&FANON);
+else
+Usart_Write_String(&FANOFF);
+
+    Usart_Write_String(&BED);
+    Usart_Write((Bed_Inclination/10)+'0');
+    Usart_Write((Bed_Inclination%10)+'0');
+
+if(Sleep_Timer > 45)
+Usart_Write_String(&SLEEPINGYES);
+else
+Usart_Write_String(&SLEEPINGNO);
+}
+
+//-----------------------------------------------------------------
+void main(void) {
+  TRISB = 0;                // PORTB is output
+  Lcd_Init(&PORTB);         // Initialize LCD connected to PORTB
+  Lcd_Cmd(Lcd_CLEAR);       // Clear display
+  Lcd_Cmd(Lcd_CURSOR_OFF);  // Turn cursor off
+
+Usart_Init(9600);
+
+  TRISC=0;
+  TRISC.F1=1;
+Stop ();
+   Relay_UART=0;
+
+Lcd_Out(1,0,"Smart Bed");
+Delay_Ms(1000);
+
+    while(1)  {
+        while(1){
+        Motion_X=Adc_Read(0);
+
+            if (Motion_X < 150){
+            if(DelayCheck(3000))
+                    break;
+            }
+
+            Send_Status_Wifi();
+            Sleep_Timer++;
+            Delay_Ms(1000);
+        }
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+     Lcd_Out(1,0,"Activated");
+        Delay_Ms(1000);
+
+
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"SEND SOS");
+
+        if(DelayCheck(2000)){
+    Send_SOS();
+            Lcd_Cmd(Lcd_CLEAR);       // Clear display
+            Delay_Ms(1000);
+        }
+
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"BED UP");
+
+        if(DelayCheck(2000)){
+        if(Bed_Inclination <60) {
+          Upward();
+          Bed_Inclination=Bed_Inclination+10;
+                Lcd_Cmd(Lcd_CLEAR);       // Clear display
+                Lcd_Out(1,0,"Done");
+                Delay_Ms(1000);
+        }
+        }
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"BED DOWN");
+
+        if(DelayCheck(2000)){
+        if(Bed_Inclination >9) {
+    Downward();
+    Bed_Inclination=Bed_Inclination-10;
+                Lcd_Cmd(Lcd_CLEAR);       // Clear display
+                Delay_Ms(1000);
+        }
+        }
+
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"FAN ON/OFF");
+
+        if(  DelayCheck(2000)  ) {
+        Relay_FAN=!Relay_FAN;
+            Lcd_Cmd(Lcd_CLEAR);       // Clear display
+            Delay_Ms(1000);
+        }
+
+        Lcd_Cmd(Lcd_CLEAR);       // Clear display
+        Lcd_Out(1,0,"LIGHT ON/OFF");
+
+        if(  DelayCheck(2000)  ) {
+        Relay_LED=!Relay_LED;
+            Lcd_Cmd(Lcd_CLEAR);       // Clear display
+            Delay_Ms(1000);
+        }
+    }
+}
